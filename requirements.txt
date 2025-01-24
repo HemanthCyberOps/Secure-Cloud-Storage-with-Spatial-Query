@@ -1,0 +1,4 @@
+flask
+pandas
+redis
+phe  # Homomorphic encryption library

@@ -1,0 +1,31 @@
+name: CI/CD Pipeline
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure Container Registry
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az acr login --name SecureDataRegistry
+
+      - name: Build and Push Docker Images
+        run: |
+          docker build -t SecureDataRegistry.azurecr.io/server0:latest ./backend/server_0
+          docker push SecureDataRegistry.azurecr.io/server0:latest
+          docker build -t SecureDataRegistry.azurecr.io/server1:latest ./backend/server_1
+          docker push SecureDataRegistry.azurecr.io/server1:latest
+          docker build -t SecureDataRegistry.azurecr.io/server2:latest ./backend/server_2
+          docker push SecureDataRegistry.azurecr.io/server2:latest
+
+      - name: Deploy to Kubernetes
+        run: |
+          az aks get-credentials --resource-group SecureDataGroup --name SecureDataAKS
+          kubectl apply -f ./deployment/k8s
