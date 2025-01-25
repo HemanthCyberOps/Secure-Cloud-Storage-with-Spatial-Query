@@ -5,7 +5,10 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-    - port: 80
+    - protocol: TCP
+      port: 80
       targetPort: 5000
+      nodePort: 30080
   selector:
     app: server0
+  healthCheckNodePort: 32000
