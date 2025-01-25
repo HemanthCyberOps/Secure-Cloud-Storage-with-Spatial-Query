@@ -18,7 +18,6 @@ class TokenManager:
         self.redis_client.set(token, user_id, ex=3600)  # Token expires in 1 hour
         return token
 
-
     def validate_access_token(self, token):
         """Check if an access token exists in Redis."""
         return self.redis_client.exists(token)

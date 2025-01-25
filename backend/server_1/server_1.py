@@ -67,10 +67,21 @@ def range_query():
     if not field or min_val is None or max_val is None:
         return jsonify({"error": "Field, min, and max values required"}), 400
 
+    # Bloom Filter Lookup Optimization
+    if not bloom_filter.lookup(field, str(min_val)) and not bloom_filter.lookup(field, str(max_val)):
+        return jsonify({"error": "No values found in Bloom Filter for the given range"}), 404
+
     encrypted_values = data_store["billing_amount_encrypted"]
+    if encrypted_values.empty:
+        return jsonify({"error": "No encrypted values found"}), 400
+
     decrypted_values = decrypt_data(encrypted_values)
+
     mask = (decrypted_values >= min_val) & (decrypted_values <= max_val)
     results = data_store[mask].to_dict(orient="records")
+
+    if not results:
+        return jsonify({"message": "No records found in the given range"}), 404
 
     return jsonify({"results": results}), 200
 
@@ -110,8 +121,12 @@ def homomorphic_sum():
 def forward_decryption_to_server_2():
     """Forward encrypted sum to Server 2 for decryption."""
     encrypted_sum = request.json.get('encrypted_sum')
-    response = requests.post(f"{SERVER_2_URL}/decrypt", json={"encrypted_data": [encrypted_sum]})
-    return response.json(), 200
+
+    try:
+        response = requests.post(f"{SERVER_2_URL}/decrypt", json={"encrypted_data": [encrypted_sum]})
+        return response.json(), 200
+    except requests.exceptions.ConnectionError:
+        return jsonify({"error": "Server 2 is not reachable"}), 503
 
 if __name__ == "__main__":
     app.run(port=5001, debug=True)

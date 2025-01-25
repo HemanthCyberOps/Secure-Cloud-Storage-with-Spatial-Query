@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
-from backend.shared.paillier import public_key, private_key, EncryptedNumber
+from shared.paillier import public_key, private_key, EncryptedNumber
 
 app = Flask(__name__)
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    """Check if Server 2 is running."""
     return jsonify({"status": "running"}), 200
 
 @app.route('/decrypt', methods=['POST'])
@@ -16,13 +17,19 @@ def decrypt():
         if not encrypted_data or not isinstance(encrypted_data, list):
             return jsonify({"error": "Invalid or missing 'encrypted_data'. Expected a list."}), 400
 
-        decrypted_values = [
-            private_key.decrypt(EncryptedNumber(public_key, int(ciphertext)))
-            for ciphertext in encrypted_data
-        ]
+        decrypted_values = []
+        for ciphertext in encrypted_data:
+            try:
+                decrypted_value = private_key.decrypt(EncryptedNumber(public_key, int(ciphertext)))
+                decrypted_values.append(decrypted_value)
+            except Exception as e:
+                print(f"[ERROR] Failed to decrypt value {ciphertext}: {e}")
+                return jsonify({"error": f"Failed to decrypt value: {e}"}), 500
+
         return jsonify({"decrypted_values": decrypted_values}), 200
+
     except Exception as e:
-        print(f"Error during decryption: {e}")
+        print(f"[ERROR] Decryption error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/decrypt_sum', methods=['POST'])
@@ -36,8 +43,9 @@ def decrypt_sum():
 
         decrypted_sum = private_key.decrypt(EncryptedNumber(public_key, int(encrypted_sum)))
         return jsonify({"decrypted_sum": decrypted_sum}), 200
+
     except Exception as e:
-        print(f"Error during sum decryption: {e}")
+        print(f"[ERROR] Sum decryption error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/homomorphic_operations', methods=['POST'])
@@ -52,11 +60,20 @@ def homomorphic_operations():
         if not encrypted_values or not isinstance(encrypted_values, list):
             return jsonify({"error": "Invalid or missing 'encrypted_values'. Expected a list."}), 400
 
-        enc_numbers = [EncryptedNumber(public_key, int(val)) for val in encrypted_values]
+        enc_numbers = []
+        for val in encrypted_values:
+            try:
+                enc_num = EncryptedNumber(public_key, int(val))
+                enc_numbers.append(enc_num)
+            except Exception as e:
+                print(f"[ERROR] Invalid encrypted value {val}: {e}")
+                return jsonify({"error": f"Invalid encrypted value: {e}"}), 400
 
         if operation == "addition":
             result_enc = sum(enc_numbers)
-        elif operation == "multiplication" and scalar is not None:
+        elif operation == "multiplication":
+            if scalar is None:
+                return jsonify({"error": "Missing 'scalar' for multiplication."}), 400
             result_enc = enc_numbers[0] * scalar
         else:
             return jsonify({"error": "Invalid operation. Supported: 'addition', 'multiplication' with scalar."}), 400
@@ -65,7 +82,7 @@ def homomorphic_operations():
         return jsonify({"decrypted_result": decrypted_result}), 200
 
     except Exception as e:
-        print(f"Error during homomorphic operations: {e}")
+        print(f"[ERROR] Homomorphic operation error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
