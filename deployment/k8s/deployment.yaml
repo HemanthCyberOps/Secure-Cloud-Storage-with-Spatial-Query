@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: server0
-          image: SecureDataRegistry.azurecr.io/server0:latest
+          image: yourdockerhubusername/server0:latest
           ports:
             - containerPort: 5000
           env:
@@ -25,10 +25,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: SECRET_KEY
-          resources:
-            requests:
-              cpu: "250m"
-              memory: "512Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: server1
+  template:
+    metadata:
+      labels:
+        app: server1
+    spec:
+      containers:
+        - name: server1
+          image: yourdockerhubusername/server1:latest
+          ports:
+            - containerPort: 5001
+          env:
+            - name: BLOB_STORAGE_ACCOUNT
+              value: "secureblobstorage"
+            - name: REDIS_HOST
+              value: "redis-service"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: server2
+  template:
+    metadata:
+      labels:
+        app: server2
+    spec:
+      containers:
+        - name: server2
+          image: yourdockerhubusername/server2:latest
+          ports:
+            - containerPort: 5002
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SECRET_KEY
