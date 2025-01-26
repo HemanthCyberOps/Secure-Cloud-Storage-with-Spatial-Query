@@ -12,9 +12,10 @@ spec:
       labels:
         app: server0
     spec:
+      restartPolicy: Always
       containers:
         - name: server0
-          image: yourdockerhubusername/server0:latest
+          image: mydockerhubusername/server0:latest  # ✅ Replace with your actual registry path
           ports:
             - containerPort: 5000
           env:
@@ -25,6 +26,13 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: SECRET_KEY
+          resources:  # ✅ Added resource limits & requests
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,9 +48,10 @@ spec:
       labels:
         app: server1
     spec:
+      restartPolicy: Always
       containers:
         - name: server1
-          image: yourdockerhubusername/server1:latest
+          image: mydockerhubusername/server1:latest  # ✅ Replace with your actual registry path
           ports:
             - containerPort: 5001
           env:
@@ -50,6 +59,13 @@ spec:
               value: "secureblobstorage"
             - name: REDIS_HOST
               value: "redis-service"
+          resources:  # ✅ Added resource limits & requests
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -65,9 +81,10 @@ spec:
       labels:
         app: server2
     spec:
+      restartPolicy: Always
       containers:
         - name: server2
-          image: yourdockerhubusername/server2:latest
+          image: mydockerhubusername/server2:latest  # ✅ Replace with your actual registry path
           ports:
             - containerPort: 5002
           env:
@@ -76,3 +93,10 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: SECRET_KEY
+          resources:  # ✅ Added resource limits & requests
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"

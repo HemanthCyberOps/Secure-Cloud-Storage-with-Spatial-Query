@@ -1,0 +1,6 @@
+flask
+pandas
+numpy
+azure-storage-blob
+phe  # For homomorphic encryption
+requests

@@ -1,0 +1,4 @@
+flask
+numpy
+phe  # For Paillier encryption/decryption
+requests
