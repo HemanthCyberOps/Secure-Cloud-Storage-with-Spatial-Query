@@ -1,5 +1,11 @@
 from flask import Flask, request, jsonify
-from shared.paillier import public_key, private_key, EncryptedNumber
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from shared.paillier import safe_decrypt, public_key, private_key, EncryptedNumber
+from phe.util import invert
+from phe import paillier
+from shared.paillier import SCALING_FACTOR
 
 app = Flask(__name__)
 
@@ -31,23 +37,44 @@ def decrypt():
     except Exception as e:
         print(f"[ERROR] Decryption error: {e}")
         return jsonify({"error": str(e)}), 500
-
+    
 @app.route('/decrypt_sum', methods=['POST'])
 def decrypt_sum():
-    """Decrypt sum of encrypted values received from Server 1."""
+    """Safely decrypt a homomorphic sum and apply modular correction to prevent overflow."""
     try:
-        encrypted_sum = request.json.get('encrypted_sum')
+        data = request.json
+        encrypted_sum_str = data.get("encrypted_sum")
 
-        if not encrypted_sum:
-            return jsonify({"error": "Missing 'encrypted_sum'."}), 400
+        if not encrypted_sum_str:
+            return jsonify({"error": "Missing encrypted_sum"}), 400
 
-        decrypted_sum = private_key.decrypt(EncryptedNumber(public_key, int(encrypted_sum)))
-        return jsonify({"decrypted_sum": decrypted_sum}), 200
+        try:
+            # Convert the encrypted sum string into an integer and reconstruct EncryptedNumber
+            encrypted_sum_value = int(encrypted_sum_str)
+            encrypted_sum = EncryptedNumber(public_key, encrypted_sum_value)
+
+            # Perform decryption
+            decrypted_sum = private_key.decrypt(encrypted_sum)
+
+            # Handle modular wrap-around to ensure correct values
+            n = public_key.n
+            if decrypted_sum > (n // 2):  
+                decrypted_sum -= n  # Correct modular wrap-around
+            elif decrypted_sum < 0:
+                decrypted_sum += n  # Ensure positivity
+
+            # Apply scaling factor correction
+            decrypted_sum *= 1000  # Use same SCALING_FACTOR as in paillier.py
+
+            return jsonify({"decrypted_sum": decrypted_sum}), 200
+
+        except Exception as e:
+            return jsonify({"error": f"Decryption failed: {str(e)}"}), 500
 
     except Exception as e:
-        print(f"[ERROR] Sum decryption error: {e}")
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+    
+    
 @app.route('/homomorphic_operations', methods=['POST'])
 def homomorphic_operations():
     """Perform homomorphic addition and scalar multiplication."""

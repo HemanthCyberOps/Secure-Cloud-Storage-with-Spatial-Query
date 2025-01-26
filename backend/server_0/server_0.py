@@ -1,23 +1,36 @@
-import pandas as pd
 import os
+import logging
+import sys
+import numpy as np
+# Add the backend directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import pandas as pd
 import pickle
-from flask import Flask, jsonify, request
 from shared.BloomFilter import BloomFilter
 from shared.token_manager import TokenManager
+from flask import Flask, jsonify, request
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
 token_manager = TokenManager()
 
-# File Paths
-dataset_path = "reduced_healthcare_dataset.csv"
+dataset_path = os.path.join("backend", "dataset", "reduced_healthcare_dataset.csv")
 bloom_filter_path = "bloom_filter.pkl"
+
+data_store = None
 
 # Load dataset
 if os.path.exists(dataset_path):
-    data_store = pd.read_csv(dataset_path)
-    print("Dataset loaded successfully.")
+    try:
+        data_store = pd.read_csv(dataset_path)
+        logging.info("Dataset loaded successfully.")
+    except Exception as e:
+        logging.error(f"Error loading dataset: {e}")
+        data_store = pd.DataFrame()
 else:
-    print(f"Dataset not found at {dataset_path}. Initializing with an empty DataFrame.")
+    logging.warning(f"Dataset not found at {dataset_path}. Initializing an empty DataFrame.")
     data_store = pd.DataFrame(columns=[
         "name", "age", "gender", "blood_type", "medical_condition",
         "date_of_admission", "doctor", "hospital", "insurance_provider",
@@ -25,21 +38,36 @@ else:
         "discharge_date", "medication", "test_results", "latitude", "longitude"
     ])
 
-# Load or initialize Bloom Filter
-if os.path.exists(bloom_filter_path):
-    with open(bloom_filter_path, "rb") as f:
-        bloom_filter = pickle.load(f)
-else:
-    bloom_filter = BloomFilter()
+bloom_filter_path = "bloom_filter.pkl"
 
-# Add existing dataset records to Bloom Filter
-for index, row in data_store.iterrows():
-    bloom_filter.add("name", row["name"])
-
-# Save Bloom Filter persistently
 def save_bloom_filter():
-    with open(bloom_filter_path, "wb") as f:
-        pickle.dump(bloom_filter, f)
+    """Save the Bloom filter in a safe format."""
+    try:
+        with open(bloom_filter_path, "wb") as f:
+            pickle.dump({
+                "dimensions": bloom_filter.dimensions,
+                "bit_array": bloom_filter.bit_array.tolist(),  # Convert NumPy array to list
+                "num_hashes": bloom_filter.num_hashes
+            }, f)
+        print("Bloom filter saved successfully.")
+    except Exception as e:
+        print(f"Error saving Bloom filter: {e}")
+
+if os.path.exists(bloom_filter_path):
+    try:
+        with open(bloom_filter_path, "rb") as f:
+            bloom_data = pickle.load(f)
+            bloom_filter = BloomFilter(dimensions=bloom_data["dimensions"], num_hashes=bloom_data["num_hashes"])
+            bloom_filter.bit_array = np.array(bloom_data["bit_array"], dtype=bool)  # Convert list back to NumPy array
+        print("Bloom filter loaded successfully.")
+    except (EOFError, pickle.UnpicklingError, KeyError, TypeError) as e:
+        print(f"Bloom filter file is corrupted: {e}. Initializing a new one.")
+        bloom_filter = BloomFilter()
+        save_bloom_filter()  # Force save a new one
+else:
+    print("No Bloom filter file found. Initializing a new one.")
+    bloom_filter = BloomFilter()
+    save_bloom_filter()  # Save the new Bloom filter
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -47,16 +75,27 @@ def health_check():
 
 @app.route('/generate_token', methods=['POST'])
 def generate_token():
-    """Generate an access token for users."""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({"error": "Missing 'user_id'"}), 400
     token = token_manager.generate_access_token(user_id)
     return jsonify({"token": token}), 200
 
+@app.route('/generate_query_token', methods=['POST'])
+def generate_query_token():
+    access_token = request.headers.get("Authorization")
+    if not access_token or not token_manager.validate_access_token(access_token):
+        return jsonify({"error": "Unauthorized access"}), 401
+    request_data = request.get_json()
+    query = request_data.get("query")
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+    query_token = token_manager.generate_query_token(access_token, query)
+    return jsonify({"query_token": query_token}), 200
+
 @app.route('/add_data', methods=['POST'])
 def add_data():
-    """Add new patient data to the dataset and update Bloom Filter persistently."""
+    """Add data to the dataset and update the Bloom Filter."""
     token = request.headers.get("Authorization")
     if not token or not token_manager.validate_access_token(token):
         return jsonify({"error": "Unauthorized access"}), 401
@@ -66,8 +105,11 @@ def add_data():
         return jsonify({"error": "Invalid or missing data"}), 400
 
     try:
-        bloom_filter.add("name", new_data["name"])
-        save_bloom_filter()
+        if "name" not in new_data:
+            return jsonify({"error": "Missing required field: 'name'"}), 400
+
+        bloom_filter.add("name", new_data["name"])  # Add to Bloom Filter
+        save_bloom_filter()  # Persist the Bloom filter
 
         global data_store
         new_row = pd.DataFrame([new_data])
@@ -80,11 +122,9 @@ def add_data():
 
 @app.route('/view_data', methods=['GET'])
 def view_data():
-    """Retrieve stored patient data (Only Authorized Users)."""
     token = request.headers.get("Authorization")
     if not token or not token_manager.validate_access_token(token):
         return jsonify({"error": "Unauthorized access"}), 401
-
     return jsonify(data_store.to_dict(orient="records")), 200
 
 if __name__ == "__main__":
