@@ -3,10 +3,10 @@ kind: Service
 metadata:
   name: server0-service
 spec:
-  type: LoadBalancer
+  type: LoadBalancer  # ✅ Single LoadBalancer for external access
   ports:
     - protocol: TCP
-      port: 80
+      port: 5000       # ✅ Expose correct service port
       targetPort: 5000
   selector:
     app: server0
@@ -16,10 +16,10 @@ kind: Service
 metadata:
   name: server1-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP  # ✅ Internal access only
   ports:
     - protocol: TCP
-      port: 80
+      port: 5001
       targetPort: 5001
   selector:
     app: server1
@@ -29,10 +29,10 @@ kind: Service
 metadata:
   name: server2-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP  # ✅ Internal access only
   ports:
     - protocol: TCP
-      port: 80
+      port: 5002
       targetPort: 5002
   selector:
     app: server2

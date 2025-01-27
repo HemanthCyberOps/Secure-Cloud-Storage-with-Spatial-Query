@@ -29,7 +29,7 @@ for _, row in data_store.iterrows():
     bloom_filter.add("name", row["name"])
 
 # Server 2 URL for decryption
-SERVER_2_URL = "http://127.0.0.1:5002"
+SERVER_2_URL = os.getenv("SERVER_2_URL", "https://server2-app.azurewebsites.net")
 
 @app.before_request
 def require_authorization():

@@ -16,21 +16,23 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__)
 token_manager = TokenManager()
 
-dataset_path = os.path.join("backend", "dataset", "reduced_healthcare_dataset.csv")
-bloom_filter_path = "bloom_filter.pkl"
+# Corrected paths for Azure App Service
+DATASET_PATH = "/home/site/wwwroot/backend/dataset/reduced_healthcare_dataset.csv"
+BLOOM_FILTER_PATH = "/home/site/wwwroot/bloom_filter.pkl"
+
 
 data_store = None
 
 # Load dataset
-if os.path.exists(dataset_path):
+if os.path.exists(DATASET_PATH):
     try:
-        data_store = pd.read_csv(dataset_path)
+        data_store = pd.read_csv(DATASET_PATH)
         logging.info("Dataset loaded successfully.")
     except Exception as e:
         logging.error(f"Error loading dataset: {e}")
         data_store = pd.DataFrame()
 else:
-    logging.warning(f"Dataset not found at {dataset_path}. Initializing an empty DataFrame.")
+    logging.warning(f"Dataset not found at {DATASET_PATH}. Initializing an empty DataFrame.")
     data_store = pd.DataFrame(columns=[
         "name", "age", "gender", "blood_type", "medical_condition",
         "date_of_admission", "doctor", "hospital", "insurance_provider",
@@ -114,7 +116,7 @@ def add_data():
         global data_store
         new_row = pd.DataFrame([new_data])
         data_store = pd.concat([data_store, new_row], ignore_index=True)
-        data_store.to_csv(dataset_path, index=False)
+        data_store.to_csv(DATASET_PATH, index=False)
 
         return jsonify({"status": "Data added successfully"}), 200
     except Exception as e:
@@ -127,5 +129,5 @@ def view_data():
         return jsonify({"error": "Unauthorized access"}), 401
     return jsonify(data_store.to_dict(orient="records")), 200
 
-if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+
