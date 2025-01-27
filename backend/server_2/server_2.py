@@ -113,5 +113,6 @@ def homomorphic_operations():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    print("[INFO] Server 2 is running on port 5002...")
-    app.run(port=5002, debug=True)
+    SERVER_2_PORT = int(os.getenv("SERVER_2_PORT", 5002))  # Default to 5002 if not set
+    print(f"[INFO] Server 2 is running on port {SERVER_2_PORT}...")
+    app.run(host="0.0.0.0", port=SERVER_2_PORT, debug=True)
